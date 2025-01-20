@@ -1,0 +1,404 @@
+     1                                  ; NAME: Louisa Houser
+     2                                  ; Assignment: P9 - Sort Array
+     3                                  ; Procedure: Print out a sequence of N integers ( range of 0-65535), sort them in increasing order, and print them out again. Use a variable sized array of unsigned WORD integers. 
+     4                                  	; SHOULD INCLUDE:
+     5                                  		; - function that is passed an unsigned WORD integer that converts it into a string
+     6                                  		   ;of characters representing that integer. There should be a "print field" in data for
+     7                                  		   ;the function to place the created string. INCLUDE new line after integer
+     8                                  		; - procedure that is passed a pointer to an array of unsinged WORD integers, and the size of
+     9                                  		   ;the array, and then prints the array of unsigned WORD integers, one per line. 
+    10                                  		   ;NEEDS to call convert function once for each integer in the array
+    11                                  		; - procedure that is passed a pointer to an array of unsigned WORD integers, and the size of
+    12                                  		   ;the array, and then sorts the array
+    13                                  		; - MAIN:
+    14                                  			; - clear the screen
+    15                                  			; - print a title for the screen that includes your name
+    16                                  			; - print a header : "Original Array"
+    17                                  			; - call print array procedure
+    18                                  			; - call sort procedure
+    19                                  			; - print a header : "Sorted Array"
+    20                                  			; - call print array procedure 
+    21                                  ; Purpose: To get practice sorting, printing, and clearing screens
+    22                                  ; Date: 11/17/23
+    23                                  
+    24                                  ;; print function
+    25                                  %macro prt 2
+    26                                  
+    27                                  	pusha
+    28                                  	mov eax, 4
+    29                                  	mov ebx, 1
+    30                                  	mov ecx, %1
+    31                                  	mov edx, %2
+    32                                  	int 80h
+    33                                  	popa
+    34                                  
+    35                                  %endmacro
+    36                                  ;------------------------------------------------------------
+    37                                  ;; called on by main and calls convert function to change to string
+    38                                  %macro toString 2
+    39                                  
+    40                                  	pusha
+    41                                  	mov ax, %1
+    42                                  	mov edi, %2
+    43                                  	xor dx, dx
+    44                                  	call convert
+    45                                  	popa
+    46                                  
+    47                                  %endmacro
+    48                                  ;-----------------------------------------------------------
+    49                                  
+    50                                  SECTION .data
+    51                                  ; define data/variables here.  Think DB, DW, DD, DQ
+    52                                  
+    53 00000000 1B5B324A                cls     db      1bh, '[2J' ; 1bh is escape
+    54 00000004 04000000                clsLen  dd $-cls
+    55                                  
+    56                                  ; CURSOR FIRST POSITION CONTROL CHARACTER
+    57 00000008 1B5B                    pos1	db	1bh, '['
+    58 0000000A 3035                    row	db	'05'
+    59 0000000C 3B                      	db	';'
+    60 0000000D 3035                    col	db	'05'
+    61 0000000F 48                      	db	'H'
+    62                                  
+    63                                  ; ARRAY THAT NEEDS SORTING AND PRINTING
+    64 00000010 D007B80B0000FFFF00-     nums:	dw	2000, 3000, 0, 65535, 0, 1, 2, 3, 100
+    65 00000019 000100020003006400 
+    66                                  numslen:	EQU	($-nums)
+    67                                  
+    68                                  ; VARIABLE THAT HOLDS CREATED STRING
+    69 00000022 2020202020000A0000-     printField: dw "     ", 10, 0
+    70 0000002B 00                 
+    71 0000002C 2020202020000A0000-     changeField: dw "     ", 10, 0
+    72 00000035 00                 
+    73                                  ; LABELS THAT WILL BE PRINTED
+    74 00000036 2D2D2D2D2D2D2D2D2D-     msg1	db	"----------------", 10, 0
+    75 0000003F 2D2D2D2D2D2D2D0A00 
+    76 00000048 12000000                msg1Len	dd	$-msg1
+    77                                  
+    78 0000004C 204F726967696E616C-     msg2	db	" Original Array ", 10, 0
+    79 00000055 204172726179200A00 
+    80 0000005E 12000000                msg2Len	dd	$-msg2
+    81                                  
+    82 00000062 2D2D2D2D2D2D2D2D2D-     msg3	db	"----------------", 10, 0
+    83 0000006B 2D2D2D2D2D2D2D0A00 
+    84 00000074 12000000                msg3Len	dd	$-msg3
+    85                                  
+    86 00000078 2D2D2D2D2D2D2D2D2D-     msg4	db	"----------------", 10, 0
+    87 00000081 2D2D2D2D2D2D2D0A00 
+    88 0000008A 12000000                msg4Len	dd	$-msg4
+    89                                  
+    90 0000008E 2020536F7274656420-     msg5	db	"  Sorted Array  ", 10, 0
+    91 00000097 417272617920200A00 
+    92 000000A0 12000000                msg5Len	dd	$-msg5
+    93                                  
+    94 000000A4 2D2D2D2D2D2D2D2D2D-     msg6	db	"----------------", 10, 0
+    95 000000AD 2D2D2D2D2D2D2D0A00 
+    96 000000B6 12000000                msg6Len	dd	$-msg6
+    97                                  
+    98                                  
+    99 000000BA 0A                      cr:  db 0ah  ;;; carriage return character
+   100                                  
+   101                                  
+   102                                  
+   103                                  ;------------------------------------------------------------
+   104                                  
+   105                                  SECTION .bss
+   106                                  ; define uninitialized data here
+   107                                  
+   108 00000000 <res 00000024>          nums2: RESD 9
+   109                                  ; -----------------------------------------------------------
+   110                                  
+   111                                  SECTION .text
+   112                                  global _main
+   113                                  _main:
+   114                                  
+   115                                  	;---------------------------;
+   116                                  	;	OG ARRAY PRINT	    ;
+   117                                  	;---------------------------;
+   118                                  	prt cls, [clsLen]
+   119                              <1> 
+   120 00000000 60                  <1>  pusha
+   121 00000001 B804000000          <1>  mov eax, 4
+   122 00000006 BB01000000          <1>  mov ebx, 1
+   123 0000000B B9[00000000]        <1>  mov ecx, %1
+   124 00000010 8B15[04000000]      <1>  mov edx, %2
+   125 00000016 CD80                <1>  int 80h
+   126 00000018 61                  <1>  popa
+   127                              <1> 
+   128                                  	prt pos1, 0
+   129                              <1> 
+   130 00000019 60                  <1>  pusha
+   131 0000001A B804000000          <1>  mov eax, 4
+   132 0000001F BB01000000          <1>  mov ebx, 1
+   133 00000024 B9[08000000]        <1>  mov ecx, %1
+   134 00000029 BA00000000          <1>  mov edx, %2
+   135 0000002E CD80                <1>  int 80h
+   136 00000030 61                  <1>  popa
+   137                              <1> 
+   138                                  	prt msg1, [msg1Len]
+   139                              <1> 
+   140 00000031 60                  <1>  pusha
+   141 00000032 B804000000          <1>  mov eax, 4
+   142 00000037 BB01000000          <1>  mov ebx, 1
+   143 0000003C B9[36000000]        <1>  mov ecx, %1
+   144 00000041 8B15[48000000]      <1>  mov edx, %2
+   145 00000047 CD80                <1>  int 80h
+   146 00000049 61                  <1>  popa
+   147                              <1> 
+   148                                  	prt msg2, [msg2Len]
+   149                              <1> 
+   150 0000004A 60                  <1>  pusha
+   151 0000004B B804000000          <1>  mov eax, 4
+   152 00000050 BB01000000          <1>  mov ebx, 1
+   153 00000055 B9[4C000000]        <1>  mov ecx, %1
+   154 0000005A 8B15[5E000000]      <1>  mov edx, %2
+   155 00000060 CD80                <1>  int 80h
+   156 00000062 61                  <1>  popa
+   157                              <1> 
+   158                                  	prt msg3, [msg3Len]
+   159                              <1> 
+   160 00000063 60                  <1>  pusha
+   161 00000064 B804000000          <1>  mov eax, 4
+   162 00000069 BB01000000          <1>  mov ebx, 1
+   163 0000006E B9[62000000]        <1>  mov ecx, %1
+   164 00000073 8B15[74000000]      <1>  mov edx, %2
+   165 00000079 CD80                <1>  int 80h
+   166 0000007B 61                  <1>  popa
+   167                              <1> 
+   168                                  
+   169 0000007C B912000000              	mov ecx, numslen
+   170 00000081 31F6                    	xor esi, esi
+   171                                  	printArray:
+   172                                  		; CONVERT NUM TO STRING
+   173                                  		toString WORD[nums + esi], printField		; call toString
+   174                              <1> 
+   175 00000083 60                  <1>  pusha
+   176 00000084 668B86[10000000]    <1>  mov ax, %1
+   177 0000008B BF[22000000]        <1>  mov edi, %2
+   178 00000090 6631D2              <1>  xor dx, dx
+   179 00000093 E840010000          <1>  call convert
+   180 00000098 61                  <1>  popa
+   181                              <1> 
+   182                                  		prt printField, 14 	
+   183                              <1> 
+   184 00000099 60                  <1>  pusha
+   185 0000009A B804000000          <1>  mov eax, 4
+   186 0000009F BB01000000          <1>  mov ebx, 1
+   187 000000A4 B9[22000000]        <1>  mov ecx, %1
+   188 000000A9 BA0E000000          <1>  mov edx, %2
+   189 000000AE CD80                <1>  int 80h
+   190 000000B0 61                  <1>  popa
+   191                              <1> 
+   192 000000B1 83C602                  		add esi, 2
+   193 000000B4 83E901                  		sub ecx, 1
+   194 000000B7 E83A010000              		call resetPrt
+   195                                  	;	push edx
+   196                                  	;	mov edx, [changeField]
+   197                                  	;	mov DWORD[printField], edx
+   198                                  	;	pop edx
+   199                                  		prt cr, 1
+   200                              <1> 
+   201 000000BC 60                  <1>  pusha
+   202 000000BD B804000000          <1>  mov eax, 4
+   203 000000C2 BB01000000          <1>  mov ebx, 1
+   204 000000C7 B9[BA000000]        <1>  mov ecx, %1
+   205 000000CC BA01000000          <1>  mov edx, %2
+   206 000000D1 CD80                <1>  int 80h
+   207 000000D3 61                  <1>  popa
+   208                              <1> 
+   209 000000D4 E2AD                    		loop printArray
+   210                                  
+   211                                  	;---------------------------;
+   212                                  	;	SORTED PRINT	    ;
+   213                                  	;---------------------------;
+   214                                  
+   215                                  	; PRINT "SORTED ARRAY", THEN SORT THE ARRAY AND CONVERT IT TO A STRING
+   216                                  	prt msg4, [msg4Len]
+   217                              <1> 
+   218 000000D6 60                  <1>  pusha
+   219 000000D7 B804000000          <1>  mov eax, 4
+   220 000000DC BB01000000          <1>  mov ebx, 1
+   221 000000E1 B9[78000000]        <1>  mov ecx, %1
+   222 000000E6 8B15[8A000000]      <1>  mov edx, %2
+   223 000000EC CD80                <1>  int 80h
+   224 000000EE 61                  <1>  popa
+   225                              <1> 
+   226                                  	prt msg5, [msg5Len]
+   227                              <1> 
+   228 000000EF 60                  <1>  pusha
+   229 000000F0 B804000000          <1>  mov eax, 4
+   230 000000F5 BB01000000          <1>  mov ebx, 1
+   231 000000FA B9[8E000000]        <1>  mov ecx, %1
+   232 000000FF 8B15[A0000000]      <1>  mov edx, %2
+   233 00000105 CD80                <1>  int 80h
+   234 00000107 61                  <1>  popa
+   235                              <1> 
+   236                                  	prt msg6, [msg6Len]
+   237                              <1> 
+   238 00000108 60                  <1>  pusha
+   239 00000109 B804000000          <1>  mov eax, 4
+   240 0000010E BB01000000          <1>  mov ebx, 1
+   241 00000113 B9[A4000000]        <1>  mov ecx, %1
+   242 00000118 8B15[B6000000]      <1>  mov edx, %2
+   243 0000011E CD80                <1>  int 80h
+   244 00000120 61                  <1>  popa
+   245                              <1> 
+   246                                  
+   247 00000121 E866000000              	call sort		;; CALL SORT
+   248 00000126 B912000000              	mov ecx, numslen
+   249 0000012B 31F6                    	xor esi, esi
+   250                                  	printArray2:		;; ITERATE THROUGH ARRAY AND CONVERT SORTED TO STRING AND THEN PRINT
+   251                                                  ; CONVERT NUM TO STRING
+   252                                  		toString [nums2 + esi], printField
+   253                              <1> 
+   254 0000012D 60                  <1>  pusha
+   255 0000012E 668B86[00000000]    <1>  mov ax, %1
+   256 00000135 BF[22000000]        <1>  mov edi, %2
+   257 0000013A 6631D2              <1>  xor dx, dx
+   258 0000013D E896000000          <1>  call convert
+   259 00000142 61                  <1>  popa
+   260                              <1> 
+   261                                                  prt printField, 14
+   262                              <1> 
+   263 00000143 60                  <1>  pusha
+   264 00000144 B804000000          <1>  mov eax, 4
+   265 00000149 BB01000000          <1>  mov ebx, 1
+   266 0000014E B9[22000000]        <1>  mov ecx, %1
+   267 00000153 BA0E000000          <1>  mov edx, %2
+   268 00000158 CD80                <1>  int 80h
+   269 0000015A 61                  <1>  popa
+   270                              <1> 
+   271 0000015B 83C602                                  add esi, 2
+   272 0000015E 83E901                                  sub ecx, 1
+   273 00000161 E890000000              		call resetPrt
+   274                                  		prt cr, 1
+   275                              <1> 
+   276 00000166 60                  <1>  pusha
+   277 00000167 B804000000          <1>  mov eax, 4
+   278 0000016C BB01000000          <1>  mov ebx, 1
+   279 00000171 B9[BA000000]        <1>  mov ecx, %1
+   280 00000176 BA01000000          <1>  mov edx, %2
+   281 0000017B CD80                <1>  int 80h
+   282 0000017D 61                  <1>  popa
+   283                              <1> 
+   284 0000017E E2AD                                    loop printArray2
+   285                                  
+   286                                  
+   287                                  
+   288                                  
+   289                                  lastBreak:
+   290                                  
+   291                                  ; Normal termination code
+   292 00000180 B801000000              mov eax, 1
+   293 00000185 BB00000000              mov ebx, 0
+   294 0000018A CD80                    int 80h
+   295                                  
+   296                                  
+   297                                  ;--------------------------------;
+   298                                  ;          sort FUNCTION 	 ;
+   299                                  ;--------------------------------;
+   300                                  	
+   301                                  ;sort:
+   302                                  ;	pusha
+   303                                  ;	xor esi, esi
+   304                                  ;	mov ecx, numslen
+   305                                  ;	xor edi, edi
+   306                                  ;	sorting:		;; first loop compares the first element in array to everything else, and then the second element, and then the third, etc
+   307                                  ;		pusha
+   308                                  ;		mov eax, [nums + esi]
+   309                                  ;		mov edx, numslen
+   310                                  ;		sub edx, esi
+   311                                  ;		mov ecx, edx
+   312                                  ;		xor edx, edx
+   313                                  ;		secondSort:	;; second loop compares the element in the first loop to each other element in the array. 
+   314                                  				;; if it is smaller it assigns it to min by calling smallerThan
+   315                                  ;			mov ebx, [nums + edi]
+   316                                  ;			cmp eax, ebx
+   317                                  ;			jnc greaterThan
+   318                                  ;			mov DWORD[min],ebx
+   319                                  ;			mov DWORD[minAdd], 1
+   320                                  ;			greaterThan:
+   321                                  ;			add edi, 2
+   322                                  ;			sub ecx, 1
+   323                                  ;			loop secondSort
+   324                                  ;		cmp DWORD[minAdd], 1
+   325                                  ;		jne noSwap
+   326                                  ;		mov edx, [min]
+   327                                  ;		mov [nums2 + esi], edx	;; assign min to the element that was looked at in first loop
+   328                                  ;		noSwap:
+   329                                  ;		popa
+   330                                  ;		sub ecx, 1
+   331                                  ;		add esi, 2
+   332                                  ;		loop sorting		
+   333                                  ;	popa
+   334                                  ;	ret			;; return to the main
+   335                                  
+   336                                  
+   337                                  sort:
+   338 0000018C 60                      	pusha
+   339 0000018D B912000000              	mov ecx, numslen
+   340 00000192 31F6                    	xor esi, esi
+   341 00000194 31FF                    	xor edi, edi
+   342                                  	sorting:		;; LOOK AT FIRST ELEMENT AND COMPARE, THEN SECOND, THEN THIRD, ETC
+   343 00000196 60                      		pusha
+   344 00000197 8B86[10000000]          		mov eax, [nums + esi]	; MOVE ELEMENT INTO EAX
+   345 0000019D BA12000000              		mov edx, numslen
+   346 000001A2 83F901                  		cmp ecx, 1		; IF ECX IS AT ONE IT SHOULD BE SORTED
+   347 000001A5 742F                    		je finish		; SO JUMP TO FINISH AND RETURN
+   348 000001A7 29F2                    		sub edx, esi		; CHANGE ECX AS WE GO THROUGH LOOPS
+   349 000001A9 89D1                    		mov ecx, edx
+   350 000001AB 31D2                    		xor edx, edx
+   351                                  		secondSort:		; SECOND SORT COMPARES ELEMENT IN FIRST LOOP TO OTHER ELEMENTS
+   352                                  					; IN THE ARRAY AND SWAPS THEM IF SMALLER
+   353 000001AD 83C702                  			add edi, 2	;; ADD EDI 2 FROM BEGINNING SO IT WONT LOOK AT FIRST ELEMENT
+   354 000001B0 8B9F[10000000]          			mov ebx, [nums + edi]
+   355 000001B6 39D8                    			cmp eax, ebx	; COMPARE OUTER LOOP ELEMENT TO INSIDE LOOP ELEMENT
+   356 000001B8 730E                    			jnc greaterThan	; IF GREATER THAN OUTER LOOP ELEMENT, JUMP TO GREATERTHAN
+   357 000001BA 89DA                    			mov edx, ebx			;MOV EBX INTO EDX
+   358 000001BC 8987[10000000]          			mov [nums + edi], eax		;MOV EAX (LARGER #) INTO INNER LOOP SLOT
+   359 000001C2 8996[10000000]          			mov [nums + esi], edx		;MOV EDX (SMALLER #) INTO OUTER LOOP SLOT
+   360                                  			greaterThan:
+   361 000001C8 83E901                  			sub ecx, 1 
+   362 000001CB E2E0                    			loop secondSort
+   363 000001CD 61                      		popa
+   364 000001CE 83E901                  		sub ecx, 1
+   365 000001D1 83C602                  		add esi, 2
+   366 000001D4 E2C0                    		loop sorting
+   367                                  		finish:
+   368 000001D6 61                      	popa
+   369 000001D7 C3                      	ret
+   370                                  
+   371                                  
+   372                                  
+   373                                  
+   374                                  
+   375                                  ;-------------------------------;
+   376                                  ;	toString FUNCTION	;
+   377                                  ;-------------------------------;
+   378                                  
+   379                                  convert:
+   380 000001D8 66BB0A00                	mov bx, 10
+   381 000001DC 83C708                  	add edi, 8
+   382                                  	top:		;loop through array and assign it its string value
+   383 000001DF 66F7F3                  		div bx
+   384 000001E2 6683C230                		add dx, '0'
+   385 000001E6 668917                  		mov [edi], dx
+   386 000001E9 83EF02                  		sub edi, 2
+   387 000001EC 6631D2                  		xor dx, dx
+   388 000001EF 6683F800                		cmp ax, 0
+   389 000001F3 75EA                    		jne top
+   390 000001F5 C3                      	ret
+   391                                  
+   392                                  ;------------------------
+   393                                  
+   394                                  resetPrt:	;;; reset printfield so numbers don't overlap!!!!
+   395 000001F6 60                      	pusha
+   396 000001F7 B905000000              	mov ecx, 5
+   397 000001FC BF[22000000]            	mov edi, printField
+   398 00000201 83C708                  	add edi, 8
+   399                                  resetAgain:
+   400 00000204 66C7070000              	mov WORD[edi], 0
+   401 00000209 83EF02                  	sub edi, 2
+   402 0000020C E2F6                    	loop resetAgain
+   403 0000020E 61                      	popa
+   404 0000020F C3                      	ret
